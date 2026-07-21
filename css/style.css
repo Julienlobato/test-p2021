@@ -97,6 +97,7 @@ html, body {
     width: 100%;
     max-width: 480px;
     min-height: 60%;
+    max-height: 78dvh;
     border-radius: 24px;
     background: linear-gradient(160deg, var(--card-bg), #262638);
     box-shadow: 0 20px 60px rgba(0,0,0,0.4);
@@ -108,6 +109,14 @@ html, body {
     padding: 32px;
     position: relative;
     transition: transform 0.15s ease;
+    overflow-y: auto;
+}
+
+.card.flipped .card-inner {
+    align-items: flex-start;
+    justify-content: flex-start;
+    text-align: left;
+    padding-top: 44px;
 }
 
 .card-inner:active {
@@ -138,6 +147,13 @@ html, body {
     font-weight: 600;
     line-height: 1.4;
     white-space: pre-wrap;
+}
+
+.card.flipped .card-text {
+    font-size: 15.5px;
+    font-weight: 500;
+    line-height: 1.55;
+    text-align: left;
 }
 
 .card.flipped .card-face-label {
