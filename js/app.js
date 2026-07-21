@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'revise-cards-v2';
+const STORAGE_KEY = 'revise-cards-v3';
 
 const DEFAULT_CARDS = [
     {
@@ -56,9 +56,33 @@ const DEFAULT_CARDS = [
         category: "Cadrer"
     },
     {
+        id: 'cadrer-north-star',
+        question: "North Star Metric — comment la différencier d'une métrique de succès ponctuelle ?",
+        answer: "La North Star Metric est LA métrique unique qui capture la valeur durable délivrée aux utilisateurs (ex : transactions récurrentes par mois) — elle reste stable dans le temps, contrairement à une métrique de succès par action qui change à chaque test.\nUtile pour vérifier qu'une recommandation ponctuelle sert bien l'objectif long terme, pas seulement un pic court terme.\n\nPhrase type : \"Cette action ferait bouger la conversion à court terme, mais je vérifierais qu'elle sert bien notre North Star — le volume de transactions récurrentes.\"",
+        category: "Cadrer"
+    },
+    {
+        id: 'cadrer-unit-economics',
+        question: "Viabilité économique — quels 2 chiffres vérifier en priorité ?",
+        answer: "CAC (coût d'acquisition client) et LTV (valeur générée par un client sur sa durée de vie) — une piste séduisante côté utilisateur peut rester non viable si le CAC dépasse la LTV.\nRepère courant : viser un ratio LTV/CAC d'au moins 3.\n\nPhrase type : \"Avant de recommander cette action d'acquisition, je vérifierais le ratio LTV/CAC — inutile de générer du volume si le coût d'acquisition dépasse la valeur générée.\"",
+        category: "Cadrer"
+    },
+    {
+        id: 'cadrer-sizing',
+        question: "Comment cadrer rapidement la taille de l'opportunité (sizing) ?",
+        answer: "TAM (marché total adressable) → SAM (marché atteignable avec ce business model) → SOM (part réaliste captée à moyen terme).\nUtile quand le manager demande \"est-ce que ça vaut le coup\" — donne un ordre de grandeur avant de choisir où investir en discovery.\n\nPhrase type : \"Avant d'aller plus loin, je cadrerais l'ordre de grandeur : combien de clients concernés au total, combien réalistement atteignables avec ce lancement.\"",
+        category: "Cadrer"
+    },
+    {
         id: 'explorer-interviews',
         question: "Interviews utilisateurs — quand et comment ?",
         answer: "Pour comprendre le \"pourquoi\" derrière un comportement. Précise QUI interroger (clients, prospects, churnés), 2-3 thèmes de questions, questions ouvertes, échantillon 5-8 personnes.\nPiège : ne jamais demander \"achèteriez-vous...\" (hypothétique) — creuser le comportement actuel.\n\nPhrase type : \"Je voudrais interroger 5 à 8 clients existants pour comprendre leur processus d'achat actuel.\"",
+        category: "Explorer"
+    },
+    {
+        id: 'explorer-observation',
+        question: "Observation terrain (contextual inquiry) — en quoi ça complète l'interview ?",
+        answer: "Les utilisateurs racontent souvent un comportement différent de celui qu'ils ont réellement — observer en situation réelle révèle des frictions qu'ils ne verbalisent pas eux-mêmes.\nParticulièrement pertinent sur un cas retail/luxe : observer un client en boutique donne des insights qu'aucune interview ne remplace.\n\nPhrase type : \"Je compléterais les interviews par de l'observation en boutique — regarder comment les clients interagissent réellement avec le produit, pas seulement ce qu'ils en disent.\"",
         category: "Explorer"
     },
     {
@@ -95,6 +119,12 @@ const DEFAULT_CARDS = [
         id: 'explorer-biais',
         question: "Comment limiter le biais de confirmation en interview ?",
         answer: "Risque : projeter sa propre compréhension et ne retenir que ce qui confirme son hypothèse — dès la formulation de la question.\nPoser des questions ouvertes non suggestives, préparées à l'avance plutôt qu'improvisées selon ce qu'on espère entendre.\n\nPhrase type : \"Je préfère demander 'comment tu procèdes aujourd'hui' plutôt que 'est-ce que tu trouves ça compliqué'.\"",
+        category: "Explorer"
+    },
+    {
+        id: 'explorer-autres-biais',
+        question: "Au-delà du biais de confirmation, quels autres biais guettent une interview ?",
+        answer: "Biais de désirabilité sociale — la personne répond ce qui est socialement valorisant, pas ce qu'elle fait vraiment.\nBiais de question suggestive — une question qui contient déjà la réponse attendue oriente la personne sans qu'elle s'en rende compte.\nParade commune : recouper la déclaration avec un fait vécu précis.\n\nPhrase type : \"Je resterais vigilant sur le biais de désirabilité sociale ici — les clients du luxe ont tendance à valoriser l'artisanat même quand leur comportement d'achat dit autre chose.\"",
         category: "Explorer"
     },
     {
@@ -170,6 +200,24 @@ const DEFAULT_CARDS = [
         category: "Prioriser"
     },
     {
+        id: 'prioriser-kano',
+        question: "Modèle de Kano — à quoi sert-il en priorisation ?",
+        answer: "Classe les fonctionnalités selon leur effet sur la satisfaction : Basique (son absence déçoit, sa présence n'enchante pas) · Performance (plus on en donne, plus la satisfaction augmente) · Attractif/Delighter (son absence ne gêne pas, sa présence enchante).\nComplète RICE/Impact-Effort en ajoutant une dimension qualitative : quel type de valeur crée la fonctionnalité, pas seulement son coût.\n\nPhrase type : \"Je classerais ces fonctionnalités avec le modèle de Kano — celle-ci est basique, son absence serait rédhibitoire, alors que celle-là est un delighter qui différencierait vraiment l'offre.\"",
+        category: "Prioriser"
+    },
+    {
+        id: 'prioriser-moscow',
+        question: "MoSCoW — une alternative légère à RICE, quand l'utiliser ?",
+        answer: "Must have / Should have / Could have / Won't have (cette fois-ci) — plus rapide à dérouler à l'oral que RICE quand le temps est compté ou qu'on manque de données chiffrées pour scorer précisément.\nMoins rigoureux que RICE (pas de calcul) : à présenter comme un raccourci assumé, pas comme LA méthode de référence.\n\nPhrase type : \"Faute de données précises pour scorer en RICE, je trierais rapidement en MoSCoW pour distinguer ce qui est indispensable en V1.\"",
+        category: "Prioriser"
+    },
+    {
+        id: 'posture-ouverture',
+        question: "Comment ouvrir l'exercice de cas pratique dans les 30 premières secondes ?",
+        answer: "Annoncer sa structure avant de plonger dedans : \"Je vais d'abord clarifier l'objectif et la cible, puis explorer, formuler des hypothèses, prioriser, avant de proposer une direction.\"\nÇa rassure le manager tout de suite sur ta méthode, et te donne un fil à suivre si tu perds le fil en cours d'exercice.\n\nPhrase type : \"Avant de commencer, voici comment je propose de structurer mon raisonnement : cadrer, explorer, formuler, prioriser, proposer.\"",
+        category: "Posture"
+    },
+    {
         id: 'posture-questions-manager',
         question: "Pourquoi challenger aussi le manager pendant l'exercice ?",
         answer: "Un vrai PM ne subit pas l'exercice : demande du contexte, questionne les contraintes (timing, budget). Chaque question doit avoir un but clair.\n\nPhrase type : \"Est-ce qu'il y a une contrainte de timing ou de budget déjà fixée, qui orienterait mes priorités ?\"",
@@ -185,6 +233,12 @@ const DEFAULT_CARDS = [
         id: 'posture-test-leger',
         question: "3 façons de tester léger avant de développer ?",
         answer: "Fake door test (bouton qui n'existe pas encore, on mesure les clics) · Landing page test (page décrivant l'offre, on mesure l'intérêt) · Prototype cliquable (mockup testé sans code).\n\nPhrase type : \"Avant de développer la fonctionnalité complète, je proposerais un fake door test pour mesurer l'intérêt réel.\"",
+        category: "Posture"
+    },
+    {
+        id: 'posture-usability-testing',
+        question: "Test utilisateur sur prototype (usability testing) — comment le nommer précisément ?",
+        answer: "Complète le fake door / landing page test : ici, on observe un utilisateur naviguer un prototype cliquable, en pensant à voix haute.\nModéré (tu observes en direct, tu peux creuser un blocage) vs non-modéré (à distance, sans observateur, plus rapide mais moins riche).\n\nPhrase type : \"Avant de valider cette direction, je testerais un prototype cliquable en usability testing modéré auprès de 5 utilisateurs, pour comprendre pourquoi ils bloquent, pas seulement où.\"",
         category: "Posture"
     },
     {
