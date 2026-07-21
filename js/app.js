@@ -272,16 +272,103 @@ function uid() {
     return 'c-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+// Spaced repetition (lightweight Leitner system): each card has a box (1-5)
+// and a due date. Rating a card after reveal moves it between boxes so
+// well-known cards resurface less often than shaky ones.
+const PROGRESS_KEY = 'revise-progress-v1';
+const BOX_INTERVAL_DAYS = [0, 0, 1, 3, 7, 16];
+const MAX_BOX = 5;
+
+function loadProgress() {
+    try {
+        const raw = localStorage.getItem(PROGRESS_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {};
+}
+
+function saveProgress(p) {
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+}
+
+function getBox(id) {
+    const p = progress[id];
+    return (p && typeof p.box === 'number') ? p.box : 0;
+}
+
+function isDue(id) {
+    const p = progress[id];
+    if (!p) return true;
+    return p.dueAt <= Date.now();
+}
+
+function rateCard(id, rating) {
+    const p = progress[id] || { box: 0, reviews: 0, dueAt: 0 };
+    let box = p.box || 0;
+    if (rating === 'again') {
+        box = 1;
+    } else if (rating === 'good') {
+        box = Math.min(Math.max(box, 1) + 1, MAX_BOX);
+    } else if (rating === 'easy') {
+        box = Math.min(Math.max(box, 1) + 2, MAX_BOX);
+    }
+    p.box = box;
+    p.reviews = (p.reviews || 0) + 1;
+    p.dueAt = Date.now() + BOX_INTERVAL_DAYS[box] * 86400000;
+    progress[id] = p;
+    saveProgress(progress);
+}
+
+// Interleaving: round-robin merge across categories instead of studying one
+// category in a block. Mixing topics during practice is well documented to
+// improve long-term retention compared to blocked practice.
+function interleave(list) {
+    const groups = new Map();
+    list.forEach((c) => {
+        const key = c.category || '';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(c);
+    });
+    const buckets = Array.from(groups.values());
+    const result = [];
+    let added = true;
+    while (added) {
+        added = false;
+        for (const bucket of buckets) {
+            if (bucket.length) {
+                result.push(bucket.shift());
+                added = true;
+            }
+        }
+    }
+    return result;
+}
+
+function getDisplayCards() {
+    if (reviewMode) {
+        const due = cards.filter((c) => isDue(c.id));
+        due.sort((a, b) => ((progress[a.id] && progress[a.id].dueAt) || 0) - ((progress[b.id] && progress[b.id].dueAt) || 0));
+        return interleave(due);
+    }
+    return interleave(cards);
+}
+
 let cards = loadCards();
+let progress = loadProgress();
 let editingId = null;
+let reviewMode = false;
 
 const deckEl = document.getElementById('deck');
 const emptyStateEl = document.getElementById('emptyState');
+const reviewEmptyStateEl = document.getElementById('reviewEmptyState');
 const progressEl = document.getElementById('progress');
 const addBtn = document.getElementById('addBtn');
 const emptyAddBtn = document.getElementById('emptyAddBtn');
+const backToDeckBtn = document.getElementById('backToDeckBtn');
 const shuffleBtn = document.getElementById('shuffleBtn');
 const manageBtn = document.getElementById('manageBtn');
+const reviewBtn = document.getElementById('reviewBtn');
+const dueBadgeEl = document.getElementById('dueBadge');
 
 const cardModal = document.getElementById('cardModal');
 const modalTitle = document.getElementById('modalTitle');
@@ -297,34 +384,67 @@ const manageList = document.getElementById('manageList');
 const closeManageBtn = document.getElementById('closeManageBtn');
 const resetBtn = document.getElementById('resetBtn');
 
+function masteryDotsHtml(box) {
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+        html += `<span class="dot${i <= box ? ' filled' : ''}"></span>`;
+    }
+    return html;
+}
+
 function render() {
-    deckEl.innerHTML = '';
+    updateDueBadge();
+
     if (cards.length === 0) {
         emptyStateEl.classList.remove('hidden');
+        reviewEmptyStateEl.classList.add('hidden');
         deckEl.classList.add('hidden');
-        updateProgress(0);
+        deckEl.innerHTML = '';
+        updateProgress(0, 0);
         return;
     }
-    emptyStateEl.classList.add('hidden');
-    deckEl.classList.remove('hidden');
 
-    cards.forEach((card) => {
+    const displayCards = getDisplayCards();
+
+    if (reviewMode && displayCards.length === 0) {
+        emptyStateEl.classList.add('hidden');
+        reviewEmptyStateEl.classList.remove('hidden');
+        deckEl.classList.add('hidden');
+        deckEl.innerHTML = '';
+        updateProgress(0, 0);
+        return;
+    }
+
+    emptyStateEl.classList.add('hidden');
+    reviewEmptyStateEl.classList.add('hidden');
+    deckEl.classList.remove('hidden');
+    deckEl.innerHTML = '';
+
+    displayCards.forEach((card) => {
+        const box = getBox(card.id);
         const section = document.createElement('section');
         section.className = 'card';
         section.dataset.id = card.id;
         section.innerHTML = `
             <div class="card-inner">
                 ${card.category ? `<span class="card-category">${escapeHtml(card.category)}</span>` : ''}
+                <div class="mastery-dots">${masteryDotsHtml(box)}</div>
                 <span class="card-face-label">Question</span>
-                <p class="card-text">${escapeHtml(card.question)}</p>
+                <p class="card-text card-text-question">${escapeHtml(card.question)}</p>
+                <div class="card-answer-blocks hidden"></div>
                 <span class="card-hint">Touche pour voir la réponse</span>
+                <div class="rating-row hidden">
+                    <button type="button" class="rating-btn rating-again" data-rating="again">🔁 À revoir</button>
+                    <button type="button" class="rating-btn rating-good" data-rating="good">🙂 Bien</button>
+                    <button type="button" class="rating-btn rating-easy" data-rating="easy">✅ Facile</button>
+                </div>
                 <button class="card-edit" aria-label="Modifier">✎</button>
             </div>
         `;
 
         const inner = section.querySelector('.card-inner');
         inner.addEventListener('click', (e) => {
-            if (e.target.closest('.card-edit')) return;
+            if (e.target.closest('.card-edit') || e.target.closest('.rating-btn')) return;
             toggleFlip(section, card);
         });
 
@@ -333,26 +453,124 @@ function render() {
             openEditModal(card.id);
         });
 
+        section.querySelectorAll('.rating-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                rateCard(card.id, btn.dataset.rating);
+                const dotsEl = section.querySelector('.mastery-dots');
+                if (dotsEl) dotsEl.innerHTML = masteryDotsHtml(getBox(card.id));
+                updateDueBadge();
+                const next = section.nextElementSibling;
+                if (next && next.classList.contains('card')) {
+                    setTimeout(() => next.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+                }
+            });
+        });
+
         deckEl.appendChild(section);
     });
 
-    updateProgress(1);
+    updateProgress(1, displayCards.length);
     setupProgressObserver();
 }
 
 function toggleFlip(section, card) {
     const flipped = section.classList.toggle('flipped');
     const label = section.querySelector('.card-face-label');
-    const text = section.querySelector('.card-text');
     const hint = section.querySelector('.card-hint');
+    const questionEl = section.querySelector('.card-text-question');
+    const answerBlocksEl = section.querySelector('.card-answer-blocks');
+    const ratingRow = section.querySelector('.rating-row');
+    const editBtn = section.querySelector('.card-edit');
     if (flipped) {
         label.textContent = 'Réponse';
-        text.textContent = card.answer;
+        questionEl.classList.add('hidden');
+        answerBlocksEl.innerHTML = '';
+        renderAnswerBlocks(answerBlocksEl, card.answer);
+        answerBlocksEl.classList.remove('hidden');
         hint.textContent = 'Touche pour revoir la question';
+        ratingRow.classList.remove('hidden');
+        editBtn.classList.add('hidden');
     } else {
         label.textContent = 'Question';
-        text.textContent = card.question;
+        questionEl.classList.remove('hidden');
+        answerBlocksEl.classList.add('hidden');
         hint.textContent = 'Touche pour voir la réponse';
+        ratingRow.classList.add('hidden');
+        editBtn.classList.remove('hidden');
+    }
+}
+
+// Turns the plain-text answer into visually distinct chunks: numbered list
+// items get a number badge, "Piège :" / "Réflexe :" lines become callouts,
+// and a trailing "Phrase type : ..." paragraph becomes a quote block.
+// Chunking + signaling like this (vs. one dense paragraph) is easier to
+// scan and recall.
+function parseAnswerBlocks(text) {
+    const outerParts = text.split('\n\n');
+    let quote = null;
+    let contentParts = outerParts;
+    const last = outerParts[outerParts.length - 1];
+    if (last && /^Phrase type\s*:/.test(last.trim())) {
+        quote = last.trim().replace(/^Phrase type\s*:\s*/, '');
+        contentParts = outerParts.slice(0, -1);
+    }
+    const lines = [];
+    contentParts.forEach((part) => {
+        part.split('\n').forEach((line) => {
+            const trimmed = line.trim();
+            if (trimmed) lines.push(trimmed);
+        });
+    });
+    return { lines, quote };
+}
+
+function renderAnswerBlocks(container, text) {
+    const { lines, quote } = parseAnswerBlocks(text);
+    lines.forEach((line) => {
+        const numberedMatch = line.match(/^(\d+)\.\s*(.*)$/);
+        const calloutMatch = line.match(/^(Piège|Réflexe|Repère courant)\s*:\s*(.*)$/);
+        if (numberedMatch) {
+            const row = document.createElement('div');
+            row.className = 'ans-numbered';
+            const num = document.createElement('span');
+            num.className = 'ans-num';
+            num.textContent = numberedMatch[1];
+            const txt = document.createElement('span');
+            txt.textContent = numberedMatch[2];
+            row.appendChild(num);
+            row.appendChild(txt);
+            container.appendChild(row);
+        } else if (calloutMatch) {
+            const row = document.createElement('div');
+            row.className = 'ans-callout';
+            const label = document.createElement('span');
+            label.className = 'ans-callout-label';
+            label.textContent = calloutMatch[1] + ' :';
+            const txt = document.createElement('span');
+            txt.textContent = calloutMatch[2];
+            row.appendChild(label);
+            row.appendChild(txt);
+            container.appendChild(row);
+        } else {
+            const p = document.createElement('p');
+            p.className = 'ans-line';
+            p.textContent = line;
+            container.appendChild(p);
+        }
+    });
+    if (quote) {
+        const q = document.createElement('div');
+        q.className = 'ans-quote';
+        const qLabel = document.createElement('span');
+        qLabel.className = 'ans-quote-label';
+        qLabel.textContent = '🗣️ Phrase type';
+        const qText = document.createElement('p');
+        qText.className = 'ans-quote-text';
+        qText.textContent = quote;
+        q.appendChild(qLabel);
+        q.appendChild(qText);
+        container.appendChild(q);
     }
 }
 
@@ -362,24 +580,31 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
-function updateProgress(currentIndex) {
-    progressEl.textContent = `${currentIndex} / ${cards.length}`;
+function updateProgress(currentIndex, total) {
+    progressEl.textContent = `${currentIndex} / ${total}`;
+}
+
+function updateDueBadge() {
+    const dueCount = cards.filter((c) => isDue(c.id)).length;
+    dueBadgeEl.textContent = dueCount > 99 ? '99+' : String(dueCount);
+    dueBadgeEl.classList.toggle('hidden', dueCount === 0);
+    reviewBtn.classList.toggle('active', reviewMode);
 }
 
 let observer = null;
 function setupProgressObserver() {
     if (observer) observer.disconnect();
+    const cardEls = Array.from(document.querySelectorAll('.card'));
     observer = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
             if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-                const id = entry.target.dataset.id;
-                const idx = cards.findIndex((c) => c.id === id);
-                if (idx >= 0) updateProgress(idx + 1);
+                const idx = cardEls.indexOf(entry.target);
+                if (idx >= 0) updateProgress(idx + 1, cardEls.length);
             }
         });
     }, { root: deckEl, threshold: [0.6] });
 
-    document.querySelectorAll('.card').forEach((el) => observer.observe(el));
+    cardEls.forEach((el) => observer.observe(el));
 }
 
 function openAddModal() {
@@ -433,7 +658,9 @@ saveBtn.addEventListener('click', () => {
 deleteCardBtn.addEventListener('click', () => {
     if (!editingId) return;
     cards = cards.filter((c) => c.id !== editingId);
+    delete progress[editingId];
     saveCards(cards);
+    saveProgress(progress);
     closeCardModal();
     render();
 });
@@ -452,6 +679,17 @@ shuffleBtn.addEventListener('click', () => {
     deckEl.scrollTo({ top: 0 });
 });
 
+reviewBtn.addEventListener('click', () => {
+    reviewMode = !reviewMode;
+    render();
+    deckEl.scrollTo({ top: 0 });
+});
+
+backToDeckBtn.addEventListener('click', () => {
+    reviewMode = false;
+    render();
+});
+
 manageBtn.addEventListener('click', () => {
     renderManageList();
     manageModal.classList.remove('hidden');
@@ -462,9 +700,11 @@ closeManageBtn.addEventListener('click', () => {
 });
 
 resetBtn.addEventListener('click', () => {
-    if (!confirm('Réinitialiser toutes les fiches par défaut ? Tes fiches perso seront perdues.')) return;
+    if (!confirm('Réinitialiser toutes les fiches par défaut ? Tes fiches perso et ta progression seront perdues.')) return;
     cards = DEFAULT_CARDS.slice();
+    progress = {};
     saveCards(cards);
+    saveProgress(progress);
     manageModal.classList.add('hidden');
     render();
 });

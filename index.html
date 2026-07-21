@@ -19,6 +19,9 @@
     <header class="topbar">
         <span id="progress" class="progress">0 / 0</span>
         <div class="topbar-actions">
+            <button id="reviewBtn" class="icon-btn" title="Mode révision" aria-label="Mode révision">
+                🎯<span id="dueBadge" class="due-badge hidden">0</span>
+            </button>
             <button id="shuffleBtn" class="icon-btn" title="Mélanger" aria-label="Mélanger les cartes">🔀</button>
             <button id="manageBtn" class="icon-btn" title="Gérer mes fiches" aria-label="Gérer mes fiches">☰</button>
         </div>
@@ -29,6 +32,11 @@
     <div id="emptyState" class="empty-state hidden">
         <p>Tu n'as encore aucune fiche.</p>
         <button id="emptyAddBtn" class="btn-primary">Ajouter une fiche</button>
+    </div>
+
+    <div id="reviewEmptyState" class="empty-state hidden">
+        <p>🎉 Tout est à jour ! Rien à réviser pour l'instant.</p>
+        <button id="backToDeckBtn" class="btn-primary">Voir toutes les fiches</button>
     </div>
 
     <button id="addBtn" class="fab" aria-label="Ajouter une fiche">+</button>
